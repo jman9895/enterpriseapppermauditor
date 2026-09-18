@@ -34,6 +34,9 @@
 .EXAMPLE
     .\EnterpriseAppPermissionAudit.ps1 -SignInLookbackDays 30 -IncludeLowRisk
 
+.EXAMPLE
+    .\EnterpriseAppPermissionAudit.ps1 -ResumeFromCheckpoint "C:\Reports\EnterpriseAppAudit-Recovery.clixml"
+
 .NOTES
     Required Microsoft Graph delegated scopes:
       Application.Read.All
@@ -42,6 +45,9 @@
       AuditLog.Read.All          (unless -SkipSignInLogs is used)
 
     Only Microsoft.Graph.Authentication is required.
+
+    A collection checkpoint is automatically saved before report generation.
+    Use -ResumeFromCheckpoint to regenerate reports without querying Graph again.
 #>
 
 [CmdletBinding()]
@@ -58,7 +64,14 @@ param(
     [switch]$SkipSignInLogs,
 
     [Parameter()]
-    [switch]$IncludeLowRisk
+    [switch]$IncludeLowRisk,
+
+    [Parameter()]
+    [ValidateScript({ Test-Path -LiteralPath $_ -PathType Leaf })]
+    [string]$ResumeFromCheckpoint,
+
+    [Parameter()]
+    [string]$CheckpointPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -227,7 +240,7 @@ function Get-SuggestedAction {
         [Parameter(Mandatory)][object[]]$Permissions,
         [Parameter(Mandatory)][bool]$AssignmentRequired,
         [Parameter(Mandatory)][int]$OwnerCount,
-        [AllowNull()][datetime]$LastSignIn
+        [AllowNull()][Nullable[datetime]]$LastSignIn
     )
 
     $actions = [System.Collections.Generic.List[string]]::new()
@@ -283,6 +296,48 @@ function Get-SignInEvents {
     return @($events)
 }
 
+if ($ResumeFromCheckpoint) {
+    Write-Status "Loading checkpoint: $ResumeFromCheckpoint"
+    $recovery = Import-Clixml -LiteralPath $ResumeFromCheckpoint
+
+    $requiredProperties = @(
+        'Context', 'ServicePrincipals', 'PermissionRows', 'OwnersBySp',
+        'AssignmentsBySp', 'SignInsBySp', 'AssignmentRows', 'SignInRows',
+        'CandidateIds'
+    )
+    $missingProperties = @($requiredProperties | Where-Object {
+        $_ -notin @($recovery.PSObject.Properties.Name)
+    })
+    if ($missingProperties.Count -gt 0) {
+        throw "Checkpoint is missing required data: $($missingProperties -join ', ')"
+    }
+
+    $context = $recovery.Context
+    $servicePrincipals = @($recovery.ServicePrincipals)
+    $permissionRows = @($recovery.PermissionRows)
+    $ownersBySp = $recovery.OwnersBySp
+    $assignmentsBySp = $recovery.AssignmentsBySp
+    $signInsBySp = $recovery.SignInsBySp
+    $assignmentRows = @($recovery.AssignmentRows)
+    $signInRows = @($recovery.SignInRows)
+    $candidateIds = @($recovery.CandidateIds)
+
+    $spById = @{}
+    foreach ($sp in $servicePrincipals) {
+        $spById[[string]$sp.id] = $sp
+    }
+
+    if ('SignInLookbackDays' -in @($recovery.PSObject.Properties.Name) -and $recovery.SignInLookbackDays) {
+        $SignInLookbackDays = [int]$recovery.SignInLookbackDays
+    }
+    if ('SkipSignInLogs' -in @($recovery.PSObject.Properties.Name)) {
+        $SkipSignInLogs = [bool]$recovery.SkipSignInLogs
+    }
+
+    New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
+    Write-Status "Checkpoint loaded: $($candidateIds.Count) applications, $($permissionRows.Count) permissions, $($signInRows.Count) sign-ins." 'Success'
+}
+else {
 if (-not (Get-Module -ListAvailable -Name Microsoft.Graph.Authentication)) {
     throw 'Microsoft.Graph.Authentication is not installed. Run: Install-Module Microsoft.Graph.Authentication -Scope CurrentUser'
 }
@@ -465,6 +520,41 @@ foreach ($spId in $candidateIds) {
             })
         }
     }
+}
+
+
+
+    $effectiveCheckpointPath = if ([string]::IsNullOrWhiteSpace($CheckpointPath)) {
+        Join-Path $OutputPath 'EnterpriseAppAudit-Checkpoint.clixml'
+    }
+    else {
+        $CheckpointPath
+    }
+
+    $checkpointParent = Split-Path -Parent $effectiveCheckpointPath
+    if ($checkpointParent) {
+        New-Item -ItemType Directory -Path $checkpointParent -Force | Out-Null
+    }
+
+    Write-Status "Saving collection checkpoint: $effectiveCheckpointPath"
+    [pscustomobject]@{
+        Context               = $context
+        ServicePrincipals     = @($servicePrincipals)
+        ServicePrincipalsById = $spById
+        DelegatedGrants       = @($delegatedGrants)
+        PermissionRows        = @($permissionRows)
+        OwnersBySp            = $ownersBySp
+        AssignmentsBySp       = $assignmentsBySp
+        SignInsBySp           = $signInsBySp
+        AssignmentRows        = @($assignmentRows)
+        SignInRows            = @($signInRows)
+        CandidateIds          = @($candidateIds)
+        SignInLookbackDays    = $SignInLookbackDays
+        SkipSignInLogs        = [bool]$SkipSignInLogs
+        IncludeLowRisk        = [bool]$IncludeLowRisk
+        CreatedDateTime       = Get-Date
+    } | Export-Clixml -LiteralPath $effectiveCheckpointPath -Depth 10
+    Write-Status 'Collection checkpoint saved.' 'Success'
 }
 
 Write-Status 'Calculating risk and recommended actions...'
