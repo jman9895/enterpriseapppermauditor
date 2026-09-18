@@ -711,6 +711,7 @@ $html = @"
 <style>
 :root{--bg:#f4f6fb;--panel:#fff;--ink:#172033;--muted:#637083;--line:#dfe4ed;--purple:#5b3cc4;--critical:#a30d2d;--high:#c45100;--medium:#8a6500;--low:#28704c}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Segoe UI,Arial,sans-serif}.wrap{max-width:1500px;margin:auto;padding:32px}.hero{padding:30px;border-radius:18px;color:#fff;background:linear-gradient(135deg,#352080,#6b4bd1);box-shadow:0 14px 34px #2c23602b}.hero h1{margin:0 0 8px;font-size:30px}.hero p{margin:5px 0;color:#eee9ff}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:20px 0}.metric{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}.metric .number{font-size:30px;font-weight:750}.metric .caption{color:var(--muted);font-size:13px}.app-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:12px 0;overflow:hidden}.app-card summary{cursor:pointer;padding:17px;display:flex;align-items:center;gap:12px}.summary-note{color:var(--muted);font-size:13px;margin-left:auto}.app-card>div,.app-card>h3,.app-card>table{margin-left:18px;margin-right:18px}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 0;border-top:1px solid var(--line)}.detail-grid>div{overflow-wrap:anywhere}.label{display:block;color:var(--muted);font-size:12px;text-transform:uppercase;margin-bottom:4px}.badge{display:inline-block;border-radius:999px;padding:4px 9px;font-weight:700;font-size:12px;color:#fff}.critical{background:var(--critical)}.high{background:var(--high)}.medium{background:var(--medium)}.low{background:var(--low)}.recommendation{background:#f0edff;border-left:4px solid var(--purple);padding:13px;margin-top:8px!important}table{width:calc(100% - 36px);border-collapse:collapse;margin-bottom:18px}th,td{text-align:left;padding:9px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top}th{background:#f7f8fc}.two-column{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding-bottom:18px}.muted{color:var(--muted)}code{font-family:Cascadia Code,Consolas,monospace;font-size:12px;overflow-wrap:anywhere}.footer{color:var(--muted);font-size:12px;margin:28px 0}@media(max-width:850px){.cards,.detail-grid,.two-column{grid-template-columns:1fr}.summary-note{display:none}.wrap{padding:16px}}
+.methodology{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:18px 0;padding:0 18px 18px}.methodology summary{cursor:pointer;padding:17px 0;font-weight:700}.methodology h2{font-size:20px;margin:12px 0 6px}.methodology h3{font-size:16px;margin:18px 0 6px}.methodology table{width:100%;margin-left:0;margin-right:0}.callout{background:#f0edff;border-left:4px solid var(--purple);padding:13px}.small{font-size:13px}
 </style>
 </head>
 <body><main class="wrap">
@@ -726,6 +727,49 @@ $html = @"
   <div class="metric"><div class="number">$unrestrictedCount</div><div class="caption">Tenant-wide consent without required assignment</div></div>
 </section>
 <p class="muted">Expand an application for permissions, assignments, recent users, ownership, and remediation guidance. Application permissions are app-only and are not constrained by user assignment.</p>
+<details class="methodology" open>
+  <summary>How to read this report: definitions, scoring, and governance context</summary>
+  <p class="callout"><strong>Client interpretation:</strong> Scores prioritize review. They do not prove that an application is malicious, compromised, or noncompliant. Validate business purpose, actual need, data sensitivity, and compensating controls before changing production access.</p>
+  <h2>Risk rating rubric</h2>
+  <table>
+    <thead><tr><th>Rating</th><th>Score</th><th>Interpretation</th><th>Suggested response</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge critical">Critical</span></td><td>70+</td><td>Multiple material indicators, or a critical permission combined with broad access or governance weaknesses.</td><td>Validate immediately with the technical and business owner.</td></tr>
+      <tr><td><span class="badge high">High</span></td><td>45–69</td><td>Privileged access or a combination of elevated permission and governance concerns.</td><td>Prioritize for near-term review.</td></tr>
+      <tr><td><span class="badge medium">Medium</span></td><td>20–44</td><td>Meaningful exposure exists, with fewer high-impact indicators.</td><td>Review during the normal governance cycle.</td></tr>
+      <tr><td><span class="badge low">Low</span></td><td>0–19</td><td>No major heuristic indicators were detected; Low does not mean risk-free.</td><td>Retain in inventory and review periodically.</td></tr>
+    </tbody>
+  </table>
+  <h3>Score contributions</h3>
+  <table>
+    <thead><tr><th>Detected condition</th><th>Points</th><th>Why it matters</th></tr></thead>
+    <tbody>
+      <tr><td>One or more Critical permissions</td><td>+45</td><td>Can enable high-impact tenant, identity, role, policy, or application changes.</td></tr>
+      <tr><td>Otherwise, one or more High permissions</td><td>+25</td><td>Provides broad read, write, send, full-control, or management capability.</td></tr>
+      <tr><td>One or more app-only permissions</td><td>+20</td><td>The workload can act without a signed-in user and is not limited by user assignment.</td></tr>
+      <tr><td>Privileged tenant-wide delegated consent</td><td>+20</td><td>A privileged delegated grant is available across the tenant.</td></tr>
+      <tr><td>Tenant-wide consent and assignment not required</td><td>+15</td><td>Interactive access is not restricted to an approved user or group list.</td></tr>
+      <tr><td>No enterprise-application owner found</td><td>+5</td><td>Accountability and periodic access review may be unclear.</td></tr>
+      <tr><td>Publisher not verified</td><td>+5</td><td>One useful publisher trust signal is absent.</td></tr>
+    </tbody>
+  </table>
+  <p class="small muted">Critical and High permission points are mutually exclusive: if a Critical permission is found, the separate High-permission contribution is not also added. The remaining contextual conditions are cumulative.</p>
+  <h2>Key definitions</h2>
+  <table>
+    <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>Delegated permission</td><td>Access used on behalf of a signed-in user and normally bounded by both the granted permission and the user's own access.</td></tr>
+      <tr><td>Application permission / app-only</td><td>Access used by the workload itself without a signed-in user. User assignment does not restrict this access.</td></tr>
+      <tr><td>Tenant-wide consent</td><td>Delegated consent granted for all users (<code>AllPrincipals</code>).</td></tr>
+      <tr><td>Assignment required</td><td>Restricts interactive sign-in to explicitly assigned users and groups. It does not constrain app-only permissions.</td></tr>
+      <tr><td>Verified publisher</td><td>A Microsoft publisher-verification signal; not proof that an app is safe or appropriately permissioned.</td></tr>
+      <tr><td>Last successful sign-in</td><td>The latest matching event found within available Entra retention. No event found does not prove non-use.</td></tr>
+    </tbody>
+  </table>
+  <h2>CIS and least-privilege context</h2>
+  <p>This assessment supports review activities associated with CIS Microsoft 365 guidance and CIS access-control principles by surfacing broad consent, privileged API permissions, unrestricted interactive access, and missing ownership. It is <strong>CIS-informed, not a CIS compliance scan</strong>; the report score is a local prioritization model, not a CIS score or certification result.</p>
+  <p>Potentially excessive permission means the granted capability may be broader than the application's documented need—for example, write instead of read, tenant-wide <code>.All</code> access instead of resource-scoped access, app-only access where delegated access would suffice, or retained access for an obsolete integration. The finding requires owner validation and should not be remediated solely from the score.</p>
+</details>
 $($detailSections -join "`n")
 <div class="footer">This is a read-only point-in-time assessment. Absence of sign-ins means no activity was found within available Entra log retention; it does not prove the application is unused.</div>
 </main></body></html>

@@ -194,6 +194,36 @@ Application permissions are exercised by the service principal itself, without a
 > [!WARNING]
 > Setting **Assignment required?** to **Yes** restricts user sign-in to assigned users and groups. It does not constrain app-only permissions or stop a service principal from authenticating with its own credential or managed identity.
 
+## CIS benchmarks and least-privilege context
+
+This audit supports the review activities behind the [CIS Microsoft 365 Foundations Benchmark](https://www.cisecurity.org/benchmark/microsoft_365) and the access-control principles in [CIS Controls](https://www.cisecurity.org/controls/access-control-management). In particular, it helps an assessor identify broad application consent, privileged API access, unrestricted interactive access, missing ownership, and permissions that may exceed a documented business need.
+
+The report is **CIS-informed, not a CIS compliance scan**. It does not test every safeguard in a CIS Benchmark, and its risk score is not a CIS score. Benchmark versions and Microsoft 365 licensing requirements change, so findings should be mapped to the exact benchmark version and profile used by the organization.
+
+### How assignment required applies
+
+For an interactive enterprise application, enabling **Assignment required** creates an explicit access boundary: only assigned users and groups can sign in. Leaving it disabled can allow any tenant user to attempt to access the application, subject to the application's own authorization and other controls. Requiring assignment therefore supports least privilege when access is intended for a defined population.
+
+Assignment is not automatically appropriate for every application. Broadly deployed productivity applications, background services, and some Microsoft-managed applications may intentionally use other access models. The setting should be validated with the application owner and tested before enforcement.
+
+Most importantly, assignment controls **user sign-in**, not the effective reach of app-only permissions. A service principal with application permissions can continue to act as itself even when no users or groups are assigned. App-only access must be governed through permission consent, credential protection, workload identity controls, ownership, and periodic review.
+
+### How excessive permissions apply
+
+A permission is potentially excessive when its effective capability is broader than the application's approved business purpose. Common indicators include:
+
+- Write or management access where read-only access would satisfy the use case
+- Tenant-wide `.All` permissions where a resource-scoped or selected permission is available
+- Application permissions where delegated access would be sufficient
+- Tenant-wide delegated consent for an application used by only a small population
+- Permissions retained after a feature, integration, or application is no longer used
+
+The auditor highlights these indicators; it cannot determine business necessity by itself. A high score means **review first**, not **remove automatically**. Final disposition should compare the permission list with vendor documentation, actual usage, the application's data scope, and an approved business justification.
+
+### Suggested client-facing finding language
+
+> The assessment identified enterprise applications whose consented permissions or access configuration may provide broader access than is required for their documented business purpose. These findings should be reviewed under least-privilege and application-governance procedures. Risk ratings prioritize review and do not, by themselves, establish compromise, misuse, or noncompliance.
+
 ## Risk model
 
 Risk scoring is intentionally understandable and easy to review. Permission names are matched against patterns, and application-level configuration adds contextual risk.
@@ -236,6 +266,31 @@ Overall levels:
 | Below 20 | Low |
 
 The score is a prioritization aid, not a declaration that an application is malicious or improperly configured. Business purpose, data sensitivity, credential controls, vendor trust, and compensating controls still require human review.
+
+### Client interpretation of ratings
+
+| Rating | What it means | Suggested response |
+|---|---|---|
+| Critical | Multiple material risk indicators or at least one critical permission combined with broad access or weak governance | Validate immediately; confirm owner and purpose, then reduce access or document compensating controls |
+| High | Privileged access or a combination of elevated permission and governance concerns | Prioritize for near-term technical and business-owner review |
+| Medium | Meaningful exposure exists, but fewer high-impact indicators were found | Review during the normal application-governance cycle |
+| Low | No major heuristic indicators were detected by this tool | Retain in the inventory and review periodically; Low does not mean risk-free |
+
+### Definitions used in the report
+
+| Term | Plain-English meaning |
+|---|---|
+| Enterprise application | The service principal representing an application in the tenant |
+| Delegated permission | Access exercised on behalf of a signed-in user and normally bounded by both the permission and that user's access |
+| Application permission / app-only | Access exercised by the workload itself, without a signed-in user; user assignment does not restrict it |
+| Tenant-wide consent | Delegated consent granted for all users (`AllPrincipals`), rather than for one individual user |
+| Assignment required | Entra setting that limits interactive sign-in to explicitly assigned users or groups |
+| Admin consent | Approval of permissions that require an administrator or that are being granted on behalf of the organization |
+| Verified publisher | Microsoft publisher-verification status; a trust signal, not proof that the application is safe or appropriately permissioned |
+| Owner | A directory object recorded as accountable for the enterprise application; absence of an owner is a governance concern |
+| Last successful sign-in | Most recent matching event found within available Entra log retention; no event found does not prove non-use |
+| Risk reason | A condition that contributed points to the application's overall score |
+| Suggested action | Review guidance generated from detected conditions, not an automated remediation decision |
 
 ## Recommended review workflow
 
