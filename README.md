@@ -113,6 +113,20 @@ Skip sign-in collection and avoid requesting `AuditLog.Read.All`:
 .\EnterpriseAppPermissionAudit.ps1 -SkipSignInLogs
 ```
 
+Resume from a saved checkpoint without reconnecting to Microsoft Graph:
+
+```powershell
+.\EnterpriseAppPermissionAudit.ps1 `
+    -ResumeFromCheckpoint "C:\Reports\EnterpriseAppAudit-Recovery-20260918-123456.clixml"
+```
+
+Choose a specific checkpoint location for a new collection run:
+
+```powershell
+.\EnterpriseAppPermissionAudit.ps1 `
+    -CheckpointPath "C:\Reports\EnterpriseApps\CollectionCheckpoint.clixml"
+```
+
 Combine options:
 
 ```powershell
@@ -130,10 +144,14 @@ Combine options:
 | `-SignInLookbackDays` | Integer | `30` | Requested sign-in lookback, from 1 through 365 days |
 | `-SkipSignInLogs` | Switch | Off | Skips interactive, non-interactive, and service-principal sign-in queries |
 | `-IncludeLowRisk` | Switch | Off | Includes Low-risk applications in the HTML report |
+| `-ResumeFromCheckpoint` | String | None | Loads a previously exported CLIXML checkpoint and skips Microsoft Graph collection |
+| `-CheckpointPath` | String | Output directory | Sets the collection checkpoint path for a new audit run |
 
 Low-risk applications are always retained in the summary CSV. The switch only controls whether they appear in the HTML report.
 
 ## Output files
+
+Before report calculation, a normal collection run also saves `EnterpriseAppAudit-Checkpoint.clixml` in the output directory unless `-CheckpointPath` is supplied. This contains sensitive tenant data and should not be committed to a public repository.
 
 The script creates the following files:
 
@@ -243,6 +261,19 @@ The score is a prioritization aid, not a declaration that an application is mali
 - Large tenants can take time to process because app-role assignments are enumerated across resource APIs.
 - Sign-in collection uses the Microsoft Graph beta sign-in endpoint because it queries multiple sign-in event types. Beta behavior can change.
 - Conditional Access, workload identity risk, certificate expiration, secrets, federated credentials, and application registration ownership are outside the current scope.
+
+## Checkpoints and crash recovery
+
+A normal run automatically exports all expensive collection results before risk calculation and report generation. If reporting fails, correct the reporting issue and reuse the checkpoint:
+
+```powershell
+.\EnterpriseAppPermissionAudit.ps1 `
+    -ResumeFromCheckpoint "C:\Path\EnterpriseAppAudit-Checkpoint.clixml"
+```
+
+Resume mode does not authenticate to Microsoft Graph and does not repeat API collection. It creates a new output directory unless `-OutputPath` is specified.
+
+Older manually-created recovery files are supported when they contain the required properties documented by the recovery workflow. Checkpoint files can include user principal names, IP addresses, group names, application identifiers, assignments, and permission details. Protect them like the generated reports and never commit tenant checkpoints to this public repository.
 
 ## Troubleshooting
 
